@@ -1,0 +1,13 @@
+OUT_DIR="../private"
+
+if [ ! -d "${INFRASTRUCTURE_REPO}" ]; then
+  echo "${INFRASTRUCTURE_REPO} doesn't exist or isn't a directory"
+  exit 1
+fi
+
+cd "${CONFIG_DIR}/local" || exit 1
+
+for default_file in *-default; do
+  out_file="${OUT_DIR}/${default_file//-default}"
+  cat "${default_file}" | sed -e "s@__INFRA_REPO_PATH__@$INFRASTRUCTURE_REPO@g" > "${out_file}"
+done

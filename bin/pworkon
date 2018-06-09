@@ -1,0 +1,151 @@
+#!/bin/bash
+set -e
+#set -x
+# Needs tab completion for inventory items and clusters that can replace menus
+# Needs some sort of "home" for tab completion of project names
+# Needs to be able to use a single venv for all projects (or system), needs to be able to access venv per project OR bin folder per project? and override path
+
+function get_inventory {
+  # Start with an empty array
+  INVENTORY=()
+  INVENTORY_DIR=$INFRASTRUCTURE_REPO/inventory
+
+  # For each file in the inventory directory
+  for FILE in $INVENTORY_DIR/*; do
+    # If the file is a directory add it to the array. ("&&" is shorthand for
+    # if/then.)
+    if [ -d $FILE ];
+    then
+      # Remove the leading directories and
+      # store the name of the account.
+      INVENTORY_ITEM=${FILE#$INVENTORY_DIR/}
+      INVENTORY+=("$ACCOUNT")
+    fi
+  done
+} # function get_inventory
+
+function inventory_menu() {
+  get_inventory
+  PS3='Select Inventory to work on: '
+  select $INVENTORY in "${INVENTORY[@]}"
+  do
+    if [[ $REPLY -le 0 ]] || [[ $REPLY -gt ${#INVENTORY[@]} ]]; then
+      echo "Invalid selection"
+    else
+      echo "Selecting $INVENTORY"
+      break
+    fi
+  done
+} # function inventory_menu
+
+function activate_gcloud_account() {
+  PS3='Select google to work on: '
+  gcloudaccounts=("New account")
+  for accountname in $(gcloud auth list --format='value(account)'); do
+    gcloudaccounts+=($accountname)
+  done
+  select GCLOUD_ACCOUNT in "${gcloudaccounts[@]}"
+  do
+    if [[ $REPLY -le 0 ]] || [[ $REPLY -gt ${#gcloudaccounts[@]} ]]; then
+      echo "Invalid selection"
+    elif [[ $REPLY -eq 0 ]]; then
+      gcloud auth login
+      break
+    else
+      echo "Selecting $GCLOUD_ACCOUNT"
+      gcloud config set account "$GCLOUD_ACCOUNT"
+      break
+    fi
+  done
+}
+
+function ensure_google_application_default_creds() {
+  if [[ ! -e "${GOOGLE_APPLICATION_CREDENTIALS}" ]]; then
+    if [[ -e ~/.config/gcloud/application_default_credentials.json ]]; then
+      echo "One-time copy of application_default_credentials.json for backward compatibility..."
+    else
+      # We need these for Terraform (see https://github.com/terraform-providers/terraform-provider-google/blob/master/website/docs/index.html.markdown#configuration-reference)
+      echo "Generating application default credentials"
+      GOOGLE_APPLICATION_CREDENTIALS= gcloud auth application-default login
+    fi
+    cp ~/.config/gcloud/application_default_credentials.json "${GOOGLE_APPLICATION_CREDENTIALS}"
+  fi
+}
+
+function use_cluster() {
+  if [[ $SHELL = *"zsh" ]]; then
+    # Handle how ZSH addresses columns
+    COLUMNS=1
+    # Handle how ZSH doesn't treat split words in a variable like Bash
+    # per http://zsh.sourceforge.net/FAQ/zshfaq03.html
+    setopt shwordsplit
+  fi
+  PS3='Select a cluster: '
+  local CLUSTERS=()
+  local CLUSTER_CONFIG_CMD="echo"
+
+  if [[ -n "${KOPS_STATE_STORE}" ]]; then
+    CLUSTERS=$(kops get clusters --output json | jq -r '.[].metadata.name' 2>/dev/null || kops get clusters --output json | jq -r '.metadata.name' 2>/dev/null)
+    CLUSTER_CONFIG_CMD="kops export kubecfg"
+  elif [[ -n "${CLOUDSDK_CORE_PROJECT}" ]]; then
+    CLUSTERS=$(gcloud beta container clusters list --format "value(name)")
+    CLUSTER_CONFIG_CMD="gcloud beta container clusters get-credentials"
+  fi
+
+  if [ -n "${CLUSTERS}" ]; then
+      select CLUSTER in ${CLUSTERS}; do
+      # If there is a current context set that matches the cluster we are switching to, store it.
+      CURRENT_CONTEXT=$(kubectl config get-contexts | grep $CLUSTER | grep "*" | awk '{ print $2 }')
+      echo Current Context: $CURRENT_CONTEXT
+      # eval needed for proper behavior in ZSH
+      eval "${CLUSTER_CONFIG_CMD} ${CLUSTER}"
+      export CLUSTER
+
+      # If CURRENT_CONTEXT is set, restore it
+      if [ -n "${CURRENT_CONTEXT}" ]; then
+        kubectl config use-context ${CURRENT_CONTEXT}
+      fi
+      break
+    done
+  fi
+}
+export -f use_cluster
+
+USER_HOME=$HOME
+PENTAGON_HOME=${PENTAGON_HOME:-${USER_HOME}/.pentagon}
+if [ ! -d $PENTAGON_HOME ]; then
+    mkdir -p "${PENTAGON_HOME}/pentagon.d"
+fi
+
+#Assume we are acting locally if the PENTAGON_PROJECTS_DIR is not set
+if [ -z $PENTAGON_PROJECTS_DIR ]; then
+    PENTAGON_PROJECTS_DIR="."
+fi
+
+PROJECT="${1}"
+PROJECT_DIR="${PENTAGON_PROJECTS_DIR}/${PROJECT}"
+export INFRASTRUCTURE_REPO="${PROJECT_DIR}/${PROJECT}-infrastructure"
+
+INVENTORY="${2}"
+if [ -z "${INVENTORY}" ]; then
+    inventory_menu
+fi
+
+export INVENTORY
+export CONFIG_DIR="$INFRASTRUCTURE_REPO/inventory/$INVENTORY/config"
+
+. yaml_source $CONFIG_DIR/local/vars.yml
+. yaml_source $CONFIG_DIR/private/secrets.yml
+
+local_config
+ssh_config_path="${CONFIG_DIR}/private/ssh_config"
+if [ -e "${ssh_config_path}" ]; then
+  alias ssh="ssh -F ${ssh_config_path}"
+  alias scp="scp -F ${ssh_config_path}"
+fi
+
+for file in $(ls "${PENTAGON_HOME}/pentagon.d" | sort -V); do
+   source "${PENTAGON_HOME}/pentagon.d/${file}"
+done
+
+PS1="${PS1}" exec bash

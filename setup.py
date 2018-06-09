@@ -84,6 +84,8 @@ setup(name='pentagon',
       packages=find_packages(exclude=['tests', 'example-component']),
       scripts=[
          'bin/yaml_source',
+         'bin/pworkon',
+         'bin/local_config'
          ],
       #package_data={'': extra_files},
       data_files=[],
