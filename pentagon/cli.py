@@ -185,7 +185,7 @@ def init(ctx, *args, **kwargs):
     pentagon_home = os.path.abspath(os.path.expanduser(kwargs.get('home')))
     if not os.path.exists(pentagon_home):
         os.mkdir("{}/pentagon.d".format(pentagon_home))
-        print("export PENTAGON_HOME={};".format(pentagon_home))
+    print("export PENTAGON_HOME={};".format(pentagon_home))
 
     _pdir = kwargs.get('projects_directory')
     if _pdir is not None:
