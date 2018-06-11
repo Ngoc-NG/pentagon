@@ -60,7 +60,7 @@ setup(name='pentagon',
         "coloredlogs==9.0",
         "awscli==1.15.29",
         "shyaml==0.5.0",
-        "semver>=2.8.0",
+        "semver>=2.8.0"
       ],
       classifiers=[
           'Development Status :: 5 - Production/Stable',
@@ -84,8 +84,9 @@ setup(name='pentagon',
       packages=find_packages(exclude=['tests', 'example-component']),
       scripts=[
          'bin/yaml_source',
-         'bin/pworkon',
-         'bin/local_config'
+         'bin/pentagon_workon',
+         'bin/local_config',
+         'bin/pw_workon_completion.bash'
          ],
       #package_data={'': extra_files},
       data_files=[],

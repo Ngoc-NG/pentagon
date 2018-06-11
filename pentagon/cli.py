@@ -175,6 +175,28 @@ def migrate(ctx, **kwargs):
     logging.basicConfig(level=kwargs.get('log_level'))
     migration.migrate(kwargs['branch'], kwargs['yes'])
 
+@cli.command()
+@click.pass_context
+@click.option("--home", default="~/.pentagon", help="Location to place pentagon config files. Defaults to ~/.pentagon")
+@click.option("--projects-directory", help="Directory where projects resides. Defaults to `pwd`.")
+def init(ctx, *args, **kwargs):
+    """ Setup Pentagon environment"""
+        
+    pentagon_home = os.path.abspath(os.path.expanduser(kwargs.get('home')))
+    if not os.path.exists(pentagon_home):
+        os.mkdir("{}/pentagon.d".format(pentagon_home))
+        print("export PENTAGON_HOME={};".format(pentagon_home))
+
+    _pdir = kwargs.get('projects_directory')
+    if _pdir is not None:
+        pentagon_projects = os.path.abspath(os.path.expanduser((_pdir)))
+        if not os.path.exists(pentagon_projects):
+            os.mkdir(pentagon_projects)
+        print("export PENTAGON_PROJECTS_DIR={};".format(pentagon_projects))
+    # Enable bash completion for pentagon_workon and pentagon    
+    print("source $(which pentagon_workon_completion.bash);")
+    print('eval "$(_PENTAGON_COMPLETE=source pentagon)"')
+
 
 def _run(action, component_path, additional_args, options):
     logging.basicConfig(level=options.get('log_level'))
