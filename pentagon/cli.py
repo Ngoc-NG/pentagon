@@ -194,7 +194,7 @@ def init(ctx, *args, **kwargs):
             os.mkdir(pentagon_projects)
         print("export PENTAGON_PROJECTS_DIR={};".format(pentagon_projects))
     # Enable bash completion for pentagon_workon and pentagon    
-    print("source $(which pentagon_workon_completion.bash);")
+    print("source $(which pw_workon_completion.bash);")
     print('eval "$(_PENTAGON_COMPLETE=source pentagon)"')
 
 
